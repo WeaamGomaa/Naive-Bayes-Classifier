@@ -7,18 +7,18 @@ class PCA:
         self.mean = None
 
     def fit(self, X):
-        #subtract the mean
+        # Subtract the mean (centring data)
         self.mean = np.mean(X, axis=0)
         X = X - self.mean
 
-        #calculate covariance, functions needs samples as columns
+        # Calculate covariance, functions needs samples as columns
         cov = np.cov(X.T)
 
-        #calculate eigenvectors, eigenvalues
+        # Calculate eigenvectors, eigenvalues
         eigenvalues, eigenvectors = np.linalg.eig(cov)
         eigenvectors = eigenvectors.T
 
-        #sort eigenvectors
+        # Sort eigenvectors
         idxs = np.argsort(eigenvalues)[::-1]
         eigenvalues = eigenvalues[idxs]
         eigenvectors = eigenvectors[idxs]
@@ -26,7 +26,7 @@ class PCA:
         self.components = eigenvectors[:self.components_num]
 
     def transform(self, X):
-        #projects data
+        # Projects data
         X = X - self.mean
         return np.dot(X, self.components.T)
 

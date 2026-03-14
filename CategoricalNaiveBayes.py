@@ -3,14 +3,13 @@ import numpy as np
 class CategoricalNaiveBayes:
     def __init__(self, laplace_smoothing=1):
         # Laplace smoothing prevents zero probabilities
-        # when a value wasn't seen during training
         self.laplace_smoothing = laplace_smoothing
         self._classes = None
         self._priors = None
         self._likelihoods = None
 
     def fit(self, X, Y):
-        # Convert to numpy arrays to be safe
+        # Convert to numpy arrays
         X = np.array(X)
         Y = np.array(Y)
 
@@ -18,17 +17,12 @@ class CategoricalNaiveBayes:
         self._classes = np.unique(Y)       # [0, 1]
         classes_num = len(self._classes)   # 2
 
-        # Step 1: Calculate prior probabilities P(class)
-        # Prior = how often each class appears in training data
+        # Calculate prior probabilities P(class)
         self._priors = np.zeros(classes_num)
         for idx, c in enumerate(self._classes):
-            # Count how many samples belong to class c
             self._priors[idx] = np.sum(Y == c) / samples_num
-            # Example: 3000 edible / 4874 total = 0.615
 
-        # Step 2: Calculate likelihoods P(feature=value | class)
-        # For each feature, for each class, for each possible value
-        # we count how often that value appears
+        # Calculate likelihoods P(feature=value | class)
         self._likelihoods = []
 
         for feature_idx in range(features_num):
@@ -43,12 +37,9 @@ class CategoricalNaiveBayes:
                 feature_likelihoods[c] = {}
 
                 for value in feature_values:
-                    # Count how many times this value appears for this class
                     value_count = np.sum(X_c[:, feature_idx] == value)
 
-                    # Apply Laplace smoothing:
-                    # Without smoothing: if value never appeared → probability = 0
-                    # With smoothing: add 1 to numerator, add num_values to denominator
+                    # Laplace smoothing:
                     num_unique_values = len(feature_values)
                     probability = (value_count + self.laplace_smoothing) / \
                                   (class_count + self.laplace_smoothing * num_unique_values)
@@ -67,11 +58,8 @@ class CategoricalNaiveBayes:
         posteriors = []
 
         for idx, c in enumerate(self._classes):
-            # Start with log(prior) — use log to avoid tiny float underflow
             posterior = np.log(self._priors[idx])
 
-            # Multiply by likelihood of each feature value
-            # In log space: multiplication becomes addition
             for feature_idx, value in enumerate(x):
                 likelihoods_for_feature = self._likelihoods[feature_idx][c]
 
@@ -80,11 +68,9 @@ class CategoricalNaiveBayes:
                     posterior += np.log(likelihoods_for_feature[value])
                 else:
                     # Value was never seen during training
-                    # Use a small smoothed probability instead of 0
                     posterior += np.log(self.laplace_smoothing /
                                        (len(likelihoods_for_feature) + self.laplace_smoothing))
 
             posteriors.append(posterior)
 
-        # Return the class with the highest posterior probability
         return self._classes[np.argmax(posteriors)]

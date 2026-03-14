@@ -1,20 +1,22 @@
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler, OrdinalEncoder, LabelEncoder
+import seaborn as sns
+from sklearn.preprocessing import OrdinalEncoder, LabelEncoder
 from sklearn.model_selection import train_test_split
+from sklearn.feature_selection import chi2, SelectKBest
+from sklearn.metrics import classification_report, confusion_matrix
 
 import CategoricalNaiveBayes
 import PCA
 
-df = pd.read_csv("../NaiveBayes_Assignment/mushrooms.csv")
+df = pd.read_csv("mushrooms.csv")
 df.head()
 
-#Handle missing values
+# Handle missing values
 df['stalk-root'] = df['stalk-root'].replace('?', 'unknown')
 
-#Separate features and target
+# Separate features and target
 X = df.drop(columns=['class'])
 Y = df['class']
 
@@ -27,11 +29,6 @@ X_encoded = pd.DataFrame(X_encoded, columns=X.columns)
 le = LabelEncoder()
 Y_encoded = le.fit_transform(Y)
 
-# Verify
-print("X_encoded shape:", X_encoded.shape)
-print("y_encoded unique values:", np.unique(Y_encoded))
-print(X_encoded.head())
-
 #____________________________________________________________________________
 
 #Splitting Dataset:
@@ -39,50 +36,73 @@ X_temp, X_test, Y_temp, Y_test = train_test_split(X_encoded, Y_encoded, test_siz
 
 X_train, X_val, Y_train, Y_val = train_test_split(X_temp, Y_temp, test_size=0.25, random_state=42)
 
-print(f"Train size:      {X_train.shape}")
-print(f"Validation size: {X_val.shape}")
-print(f"Test size:       {X_test.shape}")
-
 #____________________________________________________________________________
 
-#Scaling:
-# scaler = StandardScaler()
-# X_train_scaled = scaler.fit_transform(X_train)
-# X_val_scaled   = scaler.transform(X_val)
-# X_test_scaled  = scaler.transform(X_test)
-# print(X_train_scaled)
-# print(X_val_scaled)
-# print(X_test_scaled)
-#____________________________________________________________________________
+# Evaluating Model:
+def evaluate_model(y_true, y_pred, experiment_name):
+    print(f"\n{'==========================================='}")
+    print(f"  {experiment_name}")
+    print(f"{'==========================================='}")
 
-# Calculate the Accuracy:
-def accuracy(y_true, y_pred):
-    accuracy = np.sum(y_true == y_pred) / len(y_true)
-    return accuracy
+    acc = np.sum(y_true == y_pred) / len(y_true)
+    print(f"\nAccuracy: {acc:.4f}")
+
+    print("\nClassification Report:")
+    print(classification_report(y_true, y_pred, target_names=['Edible', 'Poisonous'], zero_division=0))
+
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(6, 4))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=['Edible', 'Poisonous'],
+                yticklabels=['Edible', 'Poisonous'])
+    plt.title(f'Confusion Matrix — {experiment_name}')
+    plt.ylabel('Actual')
+    plt.xlabel('Predicted')
+    plt.tight_layout()
+    plt.savefig(f'confusion_matrix_{experiment_name}.png')
+    plt.close()
+
+    return acc
 
 #____________________________________________________________________________
 
 #Experiment 0:(All Features + Naive Bayes)
-naive_bayes = CategoricalNaiveBayes.CategoricalNaiveBayes()
-naive_bayes.fit(X_train, Y_train)
-exper0_predictions = naive_bayes.predict(X_test)
+nb_0 = CategoricalNaiveBayes.CategoricalNaiveBayes()
+nb_0.fit(X_train, Y_train)
+exper0_preds = nb_0.predict(X_test)
 
-print("Experiment 0 Accuracy:", accuracy(Y_test, exper0_predictions))
+# print("Experiment 0 Accuracy:", accuracy(Y_test, exper0_preds))
+evaluate_model(Y_test, exper0_preds, "Experiment 0")
+
+#_____________________________________________________________________________
+
+#Experiment A: Feature Selection + Naive Bayes:
+feature_selector = SelectKBest(score_func=chi2, k=10)
+feature_selector.fit(X_train, Y_train)
+X_train_selected = feature_selector.transform(X_train)
+X_test_selected = feature_selector.transform(X_test)
+
+nb_A = CategoricalNaiveBayes.CategoricalNaiveBayes()
+nb_A.fit(X_train_selected, Y_train)
+experA_preds = nb_A.predict(X_test_selected)
+
+# print("Experiment A Accuracy:", accuracy(Y_test, experA_preds))
+evaluate_model(Y_test, experA_preds, "Experiment A")
 
 #_____________________________________________________________________________
 
 #Experiment B: PCA (Feature Reduction) + Naive Bayes:
 k_values = [2, 5, 10, 15, 18, 21]
 results = []
-
 for k in k_values:
     pca = PCA.PCA(k)
     pca.fit(np.array(X_train))
+    X_train_pca = pca.transform(np.array(X_train))
     X_test_pca = pca.transform(np.array(X_test))
+    nb_B = CategoricalNaiveBayes.CategoricalNaiveBayes()
+    nb_B.fit(X_train_pca, Y_train)
+    experB_preds = nb_B.predict(X_test_pca)
+    evaluate_model(Y_test, experB_preds, "Experiment B")
 
-    experB_preds = naive_bayes.predict(X_test_pca)
-    acc = accuracy(Y_test, experB_preds)
-    results.append((k, acc))
-    print(f"k={k}: Accuracy = {acc:.4f}")
 
 
